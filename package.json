@@ -1,0 +1,9 @@
+{
+  "name": "event-photobooth",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix web",
+    "build": "npm run build --prefix web",
+    "print-server": "npm start --prefix print-server"
+  }
+}
