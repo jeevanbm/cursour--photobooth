@@ -46,6 +46,34 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
   const [draggingSticker, setDraggingSticker] = useState<number | null>(null)
   const [selectedSticker, setSelectedSticker] = useState<number | null>(null)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [autoSession, setAutoSession] = useState(false)
+  const [cameraReady, setCameraReady] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [sessionId, setSessionId] = useState(0)
+
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const betweenShotsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoSessionRef = useRef(false)
+  const photoCountRef = useRef(0)
+  const sessionIdRef = useRef(0)
+  const firstShotStartedRef = useRef(false)
+
+  const clearCaptureTimers = useCallback(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current)
+      countdownTimerRef.current = null
+    }
+    if (betweenShotsTimerRef.current) {
+      clearTimeout(betweenShotsTimerRef.current)
+      betweenShotsTimerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    photoCountRef.current = photoCount
+  }, [photoCount])
+
+  useEffect(() => () => clearCaptureTimers(), [clearCaptureTimers])
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -100,49 +128,156 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
     drawCanvas()
   }, [drawCanvas, photos, stickers, photoCount])
 
-  const addPhoto = (img: HTMLImageElement) => {
-    if (photoCount >= 4) return
+  const addPhoto = useCallback(
+    (img: HTMLImageElement) => {
+      if (photoCountRef.current >= 4) return
 
-    const scale = SLOT_WIDTH / img.width
-    const drawH = img.height * scale
-    const offsetY = drawH > SLOT_HEIGHT ? (SLOT_HEIGHT - drawH) / 2 : 0
+      const slotIndex = photoCountRef.current
+      const scale = SLOT_WIDTH / img.width
+      const drawH = img.height * scale
+      const offsetY = drawH > SLOT_HEIGHT ? (SLOT_HEIGHT - drawH) / 2 : 0
 
-    setPhotos((p) => [
-      ...p,
-      { img, slotIndex: photoCount, scale, offsetX: 0, offsetY },
-    ])
-    setCanTakePhoto(true)
-    setPhotoCount((c) => {
-      const next = c + 1
-      if (next === 4) setMode('decorate')
-      return next
-    })
-  }
+      setPhotos((p) => [...p, { img, slotIndex, scale, offsetX: 0, offsetY }])
+      setPhotoCount((c) => {
+        const next = c + 1
+        photoCountRef.current = next
+        if (next === 4) {
+          autoSessionRef.current = false
+          setAutoSession(false)
+          setMode('decorate')
+          setCanTakePhoto(true)
+        } else if (autoSessionRef.current) {
+          betweenShotsTimerRef.current = setTimeout(() => {
+            betweenShotsTimerRef.current = null
+            runCountdownRef.current()
+          }, 1500)
+        } else {
+          setCanTakePhoto(true)
+        }
+        return next
+      })
+    },
+    [],
+  )
 
-  const takePhotoNow = () => {
-    const src = webcamRef.current?.getScreenshot()
-    if (!src) return
-    const img = new Image()
-    img.src = src
-    img.onload = () => addPhoto(img)
-  }
+  const takePhotoNow = useCallback(
+    (attempt = 0) => {
+      const src = webcamRef.current?.getScreenshot()
+      if (!src) {
+        if (attempt < 8) {
+          window.setTimeout(() => takePhotoNow(attempt + 1), 150)
+          return
+        }
+        setCameraError('Camera not ready. Allow camera access or tap Take photo.')
+        autoSessionRef.current = false
+        setAutoSession(false)
+        setCanTakePhoto(true)
+        return
+      }
+      const img = new Image()
+      img.src = src
+      img.onload = () => addPhoto(img)
+    },
+    [addPhoto],
+  )
 
-  const capturePhoto = () => {
-    if (!canTakePhoto || countdown !== null) return
+  const runCountdownAndCapture = useCallback(() => {
+    if (photoCountRef.current >= 4 || countdownTimerRef.current) return
     setCanTakePhoto(false)
     setCountdown(3)
     let current = 3
-    const interval = setInterval(() => {
+    countdownTimerRef.current = setInterval(() => {
       current -= 1
       if (current === 0) {
-        clearInterval(interval)
+        clearCaptureTimers()
         setCountdown(null)
         takePhotoNow()
       } else {
         setCountdown(current)
       }
     }, 1000)
+  }, [clearCaptureTimers, takePhotoNow])
+
+  const runCountdownRef = useRef(runCountdownAndCapture)
+  useEffect(() => {
+    runCountdownRef.current = runCountdownAndCapture
+  }, [runCountdownAndCapture])
+
+  const tryStartFirstShot = useCallback(() => {
+    if (!autoSessionRef.current || photoCountRef.current > 0) return
+    if (countdownTimerRef.current || betweenShotsTimerRef.current) return
+    if (firstShotStartedRef.current) return
+    firstShotStartedRef.current = true
+    runCountdownRef.current()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedFrame || !autoSession) return
+    firstShotStartedRef.current = false
+    const activeSession = sessionId
+    const poll = window.setInterval(() => {
+      if (sessionIdRef.current !== activeSession) return
+      const video = webcamRef.current?.video
+      if (video && video.readyState >= 2) {
+        setCameraReady(true)
+        tryStartFirstShot()
+      }
+    }, 250)
+    const stop = window.setTimeout(() => window.clearInterval(poll), 12_000)
+    return () => {
+      window.clearInterval(poll)
+      window.clearTimeout(stop)
+    }
+  }, [selectedFrame, autoSession, sessionId, tryStartFirstShot])
+
+  const capturePhoto = () => {
+    if (countdown !== null || photoCountRef.current >= 4) return
+    autoSessionRef.current = false
+    setAutoSession(false)
+    clearCaptureTimers()
+    runCountdownAndCapture()
   }
+
+  const selectFrameAndStart = (src: string) => {
+    clearCaptureTimers()
+    autoSessionRef.current = true
+    setAutoSession(true)
+    firstShotStartedRef.current = false
+    setCameraReady(false)
+    setCameraError(null)
+    const nextSession = sessionIdRef.current + 1
+    sessionIdRef.current = nextSession
+    setSessionId(nextSession)
+    setSelectedFrame(src)
+    setPhotos([])
+    setPhotoCount(0)
+    photoCountRef.current = 0
+    setStickers([])
+    setSelectedSticker(null)
+    setMode('photo')
+    setCanTakePhoto(false)
+    setCountdown(null)
+    setSendError(null)
+  }
+
+  const onCameraReady = useCallback(() => {
+    setCameraError(null)
+    setCameraReady(true)
+    window.setTimeout(() => tryStartFirstShot(), 300)
+  }, [tryStartFirstShot])
+
+  const onCameraError = useCallback((err: string | DOMException) => {
+    const message =
+      typeof err === 'string'
+        ? err
+        : err.name === 'NotAllowedError'
+          ? 'Camera permission denied. Allow camera in browser settings.'
+          : 'Could not open camera.'
+    setCameraError(message)
+    autoSessionRef.current = false
+    setAutoSession(false)
+    setCanTakePhoto(true)
+  }, [])
 
   const uploadPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -159,13 +294,27 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
 
   const redoLastPhoto = () => {
     if (!photos.length) return
+    clearCaptureTimers()
+    autoSessionRef.current = false
+    setAutoSession(false)
     setPhotos((p) => p.slice(0, -1))
-    setPhotoCount((c) => Math.max(0, c - 1))
+    setPhotoCount((c) => {
+      const next = Math.max(0, c - 1)
+      photoCountRef.current = next
+      return next
+    })
     setCanTakePhoto(true)
     setMode('photo')
+    setCountdown(null)
   }
 
   const handleBack = () => {
+    clearCaptureTimers()
+    autoSessionRef.current = false
+    setAutoSession(false)
+    firstShotStartedRef.current = false
+    setCameraReady(false)
+    setCameraError(null)
     if (mode === 'decorate') {
       setMode('photo')
       setCanTakePhoto(false)
@@ -175,10 +324,12 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
       setSelectedFrame(null)
       setPhotos([])
       setPhotoCount(0)
+      photoCountRef.current = 0
       setStickers([])
       setSelectedSticker(null)
       setMode('photo')
       setCanTakePhoto(true)
+      setCountdown(null)
     }
   }
 
@@ -293,12 +444,19 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
     try {
       const blob = await canvasToBlob()
       await onSendToPrint(blob)
+      clearCaptureTimers()
+      autoSessionRef.current = false
+      setAutoSession(false)
+      firstShotStartedRef.current = false
+      setCameraReady(false)
       setSelectedFrame(null)
       setPhotos([])
       setPhotoCount(0)
+      photoCountRef.current = 0
       setStickers([])
       setMode('photo')
       setCanTakePhoto(true)
+      setCountdown(null)
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Send failed')
     }
@@ -316,9 +474,11 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
         )}
         <h2 className="booth-title">
           {!selectedFrame
-            ? 'Select a frame'
+            ? 'Tap a frame to start'
             : mode === 'photo'
-              ? 'Smile :)'
+              ? countdown != null
+                ? 'Get ready…'
+                : `Photo ${photoCount + 1} of 4`
               : 'Decorate your strip'}
         </h2>
       </div>
@@ -330,7 +490,7 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
               key={src}
               type="button"
               className="frame-thumb-btn"
-              onClick={() => setSelectedFrame(src)}
+              onClick={() => selectFrameAndStart(src)}
             >
               <img src={src} alt="" className="frame-thumb" />
             </button>
@@ -349,11 +509,14 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
                     videoConstraints={VIDEO_CONSTRAINTS}
                     mirrored
                     className="webcam"
+                    onUserMedia={onCameraReady}
+                    onUserMediaError={onCameraError}
                   />
                   {countdown != null && <div className="countdown">{countdown}</div>}
                 </div>
+                {cameraError && <p className="error">{cameraError}</p>}
                 <div className="btn-row">
-                  {canTakePhoto && (
+                  {(canTakePhoto || cameraError) && (
                     <>
                       <button type="button" className="booth-btn" onClick={capturePhoto}>
                         Take photo
@@ -370,7 +533,19 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
                     </button>
                   )}
                 </div>
-                <p className="photo-progress">{photoCount} / 4 photos</p>
+                <p className="photo-progress">
+                  {countdown != null
+                    ? `Capturing in ${countdown}…`
+                    : cameraError
+                      ? 'Tap Take photo to continue manually'
+                      : autoSession && !cameraReady
+                        ? 'Allow camera access…'
+                        : autoSession && photoCount > 0 && photoCount < 4
+                          ? 'Hold still — next shot coming up'
+                          : autoSession && photoCount === 0
+                            ? 'Starting countdown…'
+                            : `${photoCount} / 4 photos`}
+                </p>
               </>
             )}
             {mode === 'decorate' && (

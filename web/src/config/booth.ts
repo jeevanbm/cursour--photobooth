@@ -12,7 +12,12 @@ export const STICKERS = [
 ] as const
 
 /** Photo slot geometry — matches reference frame PNG layout */
-export const VIDEO_CONSTRAINTS = { width: 953, height: 599, facingMode: 'user' as const }
+/** `ideal` sizes work on phones; exact 953×599 often blocks the camera */
+export const VIDEO_CONSTRAINTS = {
+  facingMode: 'user' as const,
+  width: { ideal: 1280 },
+  height: { ideal: 720 },
+}
 export const SLOT_WIDTH = 953
 export const SLOT_HEIGHT = 599
 
