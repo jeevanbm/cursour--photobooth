@@ -29,6 +29,7 @@ export async function uploadStripAndQueuePrint(
       event_slug: EVENT_SLUG,
       storage_path: storagePath,
       public_url: urlData.publicUrl,
+      image_url: urlData.publicUrl,
       status: 'pending',
     })
     .select()
@@ -67,6 +68,36 @@ export async function fetchPendingCaptures(): Promise<CaptureRow[]> {
 
   if (error) throw new Error(error.message)
   return (data ?? []) as CaptureRow[]
+}
+
+/** All saved strips for this event (newest first). */
+export async function fetchCaptureHistory(limit = 60): Promise<CaptureRow[]> {
+  const { data, error } = await supabase
+    .from('captures')
+    .select('*')
+    .or(`event_slug.eq.${EVENT_SLUG},event_slug.is.null`)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as CaptureRow[]
+}
+
+/** Remove strip from database and storage. */
+export async function deleteCapture(row: CaptureRow): Promise<void> {
+  if (row.storage_path) {
+    const { error: storageError } = await supabase.storage
+      .from(BUCKET)
+      .remove([row.storage_path])
+    if (storageError) {
+      throw new Error(`Storage delete failed: ${storageError.message}`)
+    }
+  }
+
+  const { error } = await supabase.from('captures').delete().eq('id', row.id)
+  if (error) {
+    throw new Error(`Delete failed: ${error.message}`)
+  }
 }
 
 export async function loadEventFrames(slug: string): Promise<string[]> {
