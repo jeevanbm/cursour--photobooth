@@ -29,6 +29,7 @@ export async function uploadStripAndQueuePrint(
       event_slug: EVENT_SLUG,
       storage_path: storagePath,
       public_url: urlData.publicUrl,
+      image_url: urlData.publicUrl,
       status: 'pending',
     })
     .select()

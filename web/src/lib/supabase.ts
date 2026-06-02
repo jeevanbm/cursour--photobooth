@@ -15,9 +15,14 @@ export type CaptureRow = {
   id: string
   created_at: string
   event_slug: string | null
-  storage_path: string
+  storage_path: string | null
   public_url: string | null
+  image_url?: string | null
   status: 'pending' | 'printing' | 'printed' | 'failed'
   printed_at: string | null
   error_message: string | null
+}
+
+export function captureImageUrl(row: CaptureRow): string | null {
+  return row.public_url ?? row.image_url ?? null
 }

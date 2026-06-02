@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PRINT_HEIGHT_PX, PRINT_SERVER_URL, PRINT_WIDTH_PX } from '../config/booth'
 import { fetchPendingCaptures, markCaptureStatus } from '../lib/captures'
-import { supabase, type CaptureRow } from '../lib/supabase'
+import { captureImageUrl, supabase, type CaptureRow } from '../lib/supabase'
 
 async function resizeStripForPrint(imageUrl: string): Promise<Blob> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -92,7 +92,8 @@ export function PrintStationPage() {
 
   const processCapture = useCallback(
     async (row: CaptureRow) => {
-      if (!row.public_url) {
+      const imageUrl = captureImageUrl(row)
+      if (!imageUrl) {
         appendLog(`Missing image URL for ${row.id}`)
         return
       }
@@ -101,7 +102,7 @@ export function PrintStationPage() {
       setProcessing(row.id)
       try {
         await markCaptureStatus(row.id, 'printing')
-        const blob = await resizeStripForPrint(row.public_url)
+        const blob = await resizeStripForPrint(imageUrl)
         await sendToLocalPrinter(blob, row.id)
         await markCaptureStatus(row.id, 'printed')
         setQueue((q) => q.filter((r) => r.id !== row.id))
@@ -142,8 +143,8 @@ export function PrintStationPage() {
         <ul className="queue-list">
           {queue.map((row) => (
             <li key={row.id}>
-              {row.public_url && (
-                <img src={row.public_url} alt="" className="queue-thumb" />
+              {captureImageUrl(row) && (
+                <img src={captureImageUrl(row)!} alt="" className="queue-thumb" />
               )}
               <span>{row.id.slice(0, 8)}</span>
               <button
