@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AppShell } from '../components/AppShell'
 import { StripGallery } from '../components/StripGallery'
 import {
+  deleteCapture,
   fetchCaptureHistory,
   fetchPendingCaptures,
   markCaptureStatus,
@@ -24,7 +26,15 @@ export function PrintStationPage() {
   const [serverOk, setServerOk] = useState<boolean | null>(null)
   const [log, setLog] = useState<string[]>([])
   const [autoPrint, setAutoPrint] = useState(loadAutoPrintPreference)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const processingRef = useRef(false)
+
+  const stats = {
+    total: gallery.length,
+    printed: gallery.filter((r) => r.status === 'printed').length,
+    pending: gallery.filter((r) => r.status === 'pending').length,
+    failed: gallery.filter((r) => r.status === 'failed').length,
+  }
 
   const appendLog = (msg: string) =>
     setLog((l) => [`${new Date().toLocaleTimeString()} — ${msg}`, ...l].slice(0, 20))
@@ -86,6 +96,15 @@ export function PrintStationPage() {
           if (row.status !== 'pending') {
             setQueue((q) => q.filter((r) => r.id !== row.id))
           }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'captures' },
+        (payload) => {
+          const row = payload.old as CaptureRow
+          setGallery((g) => g.filter((r) => r.id !== row.id))
+          setQueue((q) => q.filter((r) => r.id !== row.id))
         },
       )
       .subscribe()
@@ -151,30 +170,70 @@ export function PrintStationPage() {
     })
   }
 
-  return (
-    <div className="page station-page">
-      <header className="site-header">
-        <div>
-          <h1>Print station</h1>
-          <p className="muted">Strips are saved to Supabase · re-print anytime</p>
-        </div>
-        <span className={`status-pill ${serverOk ? 'ok' : 'bad'}`}>
-          {serverOk === null ? 'Checking printer…' : serverOk ? 'Printer online' : 'Printer offline'}
-        </span>
-      </header>
+  const handleDelete = useCallback(
+    async (row: CaptureRow) => {
+      setDeletingId(row.id)
+      try {
+        await deleteCapture(row)
+        setGallery((g) => g.filter((r) => r.id !== row.id))
+        setQueue((q) => q.filter((r) => r.id !== row.id))
+        appendLog(`Deleted ${row.id.slice(0, 8)}`)
+      } catch (e) {
+        appendLog(e instanceof Error ? e.message : 'Delete failed')
+        throw e
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [],
+  )
 
-      <section className="station-panel station-toolbar">
+  const printerLabel =
+    serverOk === null ? 'Checking…' : serverOk ? 'Printer online' : 'Printer offline'
+
+  return (
+    <AppShell
+      badge="Laptop · DNP 2×6"
+      title="Print station"
+      subtitle="Queue, archive, and re-print every strip from your event."
+    >
+      <div className="station-header-row">
+        <span className={`status-pill ${serverOk ? 'ok' : serverOk === false ? 'bad' : ''}`}>
+          {printerLabel}
+        </span>
+      </div>
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <span className="stat-value">{stats.total}</span>
+          <span className="stat-label">Total saved</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{stats.printed}</span>
+          <span className="stat-label">Printed</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{stats.pending}</span>
+          <span className="stat-label">Pending</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-value">{stats.failed}</span>
+          <span className="stat-label">Failed</span>
+        </div>
+      </div>
+
+      <section className="panel station-toolbar">
         <label className="auto-print-toggle">
           <input type="checkbox" checked={autoPrint} onChange={toggleAutoPrint} />
           Auto-print new strips
         </label>
-        <button type="button" className="booth-btn" onClick={() => void refreshAll()}>
+        <button type="button" className="booth-btn booth-btn-secondary" onClick={() => void refreshAll()}>
           Refresh
         </button>
       </section>
 
-      <section className="station-panel">
-        <h2>Print queue ({queue.length})</h2>
+      <section className="panel">
+        <h2 className="section-title">Print queue <span className="count">({queue.length})</span></h2>
         {!autoPrint && (
           <p className="muted">Auto-print is off. New strips appear in the gallery — print from there.</p>
         )}
@@ -188,7 +247,7 @@ export function PrintStationPage() {
               <span>{row.id.slice(0, 8)}</span>
               <button
                 type="button"
-                className="booth-btn"
+                className="booth-btn booth-btn-secondary"
                 disabled={!!processing}
                 onClick={() => printCapture(row, { fromQueue: true })}
               >
@@ -202,24 +261,26 @@ export function PrintStationPage() {
         )}
       </section>
 
-      <section className="station-panel">
-        <h2>Saved strips ({gallery.length})</h2>
-        <p className="muted">Every strip is stored. Tap to preview, or re-print any time.</p>
+      <section className="panel">
+        <h2 className="section-title">Saved strips <span className="count">({gallery.length})</span></h2>
+        <p className="section-desc">Every strip is stored. Tap to preview, or re-print any time.</p>
         <StripGallery
           strips={gallery}
           printingId={processing}
+          deletingId={deletingId}
           onReprint={(row) => void printCapture(row)}
+          onDelete={handleDelete}
         />
       </section>
 
-      <section className="station-panel">
-        <h2>Log</h2>
+      <section className="panel panel-log">
+        <h2 className="section-title">Activity log</h2>
         <ul className="log-list">
           {log.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
       </section>
-    </div>
+    </AppShell>
   )
 }

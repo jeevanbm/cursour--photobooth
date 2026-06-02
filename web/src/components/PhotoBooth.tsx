@@ -464,41 +464,58 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
 
   const frames = frameOptions.length ? frameOptions : [...DEFAULT_FRAMES]
 
+  const statusLabel = !selectedFrame
+    ? null
+    : mode === 'photo'
+      ? countdown != null
+        ? 'Get ready'
+        : `Shot ${photoCount + 1} of 4`
+      : 'Finalize'
+
   return (
     <div className="booth">
-      <div className="booth-top">
-        {selectedFrame && (
-          <button type="button" className="booth-btn booth-back" onClick={handleBack}>
-            ← Back
-          </button>
-        )}
-        <h2 className="booth-title">
-          {!selectedFrame
-            ? 'Tap a frame to start'
-            : mode === 'photo'
-              ? countdown != null
-                ? 'Get ready…'
-                : `Photo ${photoCount + 1} of 4`
-              : 'Decorate your strip'}
-        </h2>
-      </div>
-
       {!selectedFrame ? (
-        <div className="frame-picker">
-          {frames.map((src) => (
-            <button
-              key={src}
-              type="button"
-              className="frame-thumb-btn"
-              onClick={() => selectFrameAndStart(src)}
-            >
-              <img src={src} alt="" className="frame-thumb" />
-            </button>
-          ))}
-        </div>
+        <section className="frame-picker-section panel">
+          <p className="eyebrow">Step 1</p>
+          <h2 className="section-title">Choose your frame</h2>
+          <p className="section-desc">Tap a design — the camera starts automatically with a 3-second timer.</p>
+          <div className="frame-picker">
+            {frames.map((src) => (
+              <button
+                key={src}
+                type="button"
+                className="frame-thumb-btn"
+                onClick={() => selectFrameAndStart(src)}
+              >
+                <span className="frame-thumb-ring">
+                  <img src={src} alt="" className="frame-thumb" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
       ) : (
-        <div className="booth-row">
-          <div className="booth-controls">
+        <>
+          <div className="booth-toolbar">
+            <button type="button" className="booth-btn booth-btn-ghost" onClick={handleBack}>
+              ← Back
+            </button>
+            {statusLabel && <span className="booth-status">{statusLabel}</span>}
+            {mode === 'photo' && (
+              <div className="shot-progress" aria-label={`Photo ${photoCount} of 4`}>
+                {[0, 1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className={`shot-dot ${i < photoCount ? 'done' : i === photoCount ? 'active' : ''}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="booth-row">
+            <div className="panel panel-camera">
+              <p className="panel-label">Live camera</p>
             {mode === 'photo' && (
               <>
                 <div className="webcam-wrap">
@@ -518,22 +535,22 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
                 <div className="btn-row">
                   {(canTakePhoto || cameraError) && (
                     <>
-                      <button type="button" className="booth-btn" onClick={capturePhoto}>
-                        Take photo
+                      <button type="button" className="booth-btn booth-btn-secondary" onClick={capturePhoto}>
+                        Manual shot
                       </button>
-                      <label className="booth-btn booth-upload">
+                      <label className="booth-btn booth-btn-ghost booth-upload">
                         Upload
                         <input type="file" accept="image/*" hidden onChange={uploadPhoto} />
                       </label>
                     </>
                   )}
                   {photoCount > 0 && (
-                    <button type="button" className="booth-btn" onClick={redoLastPhoto}>
-                      ⟳ Redo
+                    <button type="button" className="booth-btn booth-btn-ghost" onClick={redoLastPhoto}>
+                      Redo last
                     </button>
                   )}
                 </div>
-                <p className="photo-progress">
+                <p className="photo-progress" role="status">
                   {countdown != null
                     ? `Capturing in ${countdown}…`
                     : cameraError
@@ -549,17 +566,21 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
               </>
             )}
             {mode === 'decorate' && (
-              <div className="sticker-bar">
-                {STICKERS.map((src) => (
-                  <button key={src} type="button" onClick={() => addSticker(src)}>
-                    <img src={src} alt="" width={50} />
-                  </button>
-                ))}
-              </div>
+              <>
+                <p className="panel-hint">Tap stickers to add · select and press delete to remove</p>
+                <div className="sticker-bar">
+                  {STICKERS.map((src) => (
+                    <button key={src} type="button" className="sticker-btn" onClick={() => addSticker(src)}>
+                      <img src={src} alt="" width={44} />
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
-          </div>
+            </div>
 
-          <div className="strip-preview">
+            <div className="panel panel-strip">
+              <p className="panel-label">Your strip</p>
             <canvas
               ref={canvasRef}
               className="strip-canvas"
@@ -584,8 +605,9 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
               </div>
             )}
             {sendError && <p className="error">{sendError}</p>}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

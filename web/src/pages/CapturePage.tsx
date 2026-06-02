@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AppShell } from '../components/AppShell'
 import { PhotoBooth } from '../components/PhotoBooth'
 import { DEFAULT_FRAMES, EVENT_SLUG } from '../config/booth'
 import { loadEventFrames, uploadStripAndQueuePrint } from '../lib/captures'
@@ -18,23 +19,24 @@ export function CapturePage() {
     setSending(true)
     try {
       const row = await uploadStripAndQueuePrint(blob)
-      setLastSent(`Saved · strip ${row.id.slice(0, 8)} — printing from laptop station`)
+      setLastSent(`Strip saved · ${row.id.slice(0, 8).toUpperCase()} — sent to print station`)
     } finally {
       setSending(false)
     }
   }
 
   return (
-    <div className="page capture-page">
-      <header className="site-header">
-        <img src="/assets/logo/jiggleduo-logo.png" alt="" width={48} />
-        <div>
-          <h1>Photo Booth</h1>
-          <p className="muted">Capture · Event: {EVENT_SLUG}</p>
+    <AppShell
+      badge={`Event · ${EVENT_SLUG}`}
+      title="Capture"
+      subtitle="Select a frame to begin the timed photo session."
+    >
+      {lastSent && (
+        <div className="toast toast-success" role="status">
+          {lastSent}
         </div>
-      </header>
-      {lastSent && <p className="success-banner">{lastSent}</p>}
+      )}
       <PhotoBooth frameOptions={frames} onSendToPrint={onSendToPrint} sending={sending} />
-    </div>
+    </AppShell>
   )
 }

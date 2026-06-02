@@ -83,6 +83,23 @@ export async function fetchCaptureHistory(limit = 60): Promise<CaptureRow[]> {
   return (data ?? []) as CaptureRow[]
 }
 
+/** Remove strip from database and storage. */
+export async function deleteCapture(row: CaptureRow): Promise<void> {
+  if (row.storage_path) {
+    const { error: storageError } = await supabase.storage
+      .from(BUCKET)
+      .remove([row.storage_path])
+    if (storageError) {
+      throw new Error(`Storage delete failed: ${storageError.message}`)
+    }
+  }
+
+  const { error } = await supabase.from('captures').delete().eq('id', row.id)
+  if (error) {
+    throw new Error(`Delete failed: ${error.message}`)
+  }
+}
+
 export async function loadEventFrames(slug: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('events')
