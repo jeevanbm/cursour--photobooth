@@ -70,6 +70,19 @@ export async function fetchPendingCaptures(): Promise<CaptureRow[]> {
   return (data ?? []) as CaptureRow[]
 }
 
+/** All saved strips for this event (newest first). */
+export async function fetchCaptureHistory(limit = 60): Promise<CaptureRow[]> {
+  const { data, error } = await supabase
+    .from('captures')
+    .select('*')
+    .or(`event_slug.eq.${EVENT_SLUG},event_slug.is.null`)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as CaptureRow[]
+}
+
 export async function loadEventFrames(slug: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('events')

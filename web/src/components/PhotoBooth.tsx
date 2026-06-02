@@ -579,7 +579,7 @@ export function PhotoBooth({ frameOptions, onSendToPrint, sending }: PhotoBoothP
                   disabled={sending}
                   onClick={sendToPrint}
                 >
-                  {sending ? 'Sending…' : 'Print strip'}
+                  {sending ? 'Saving…' : 'Save strip'}
                 </button>
               </div>
             )}

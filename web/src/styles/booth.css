@@ -274,6 +274,135 @@ body {
   overflow: auto;
 }
 
+.station-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.auto-print-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.booth-btn-small {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: #fffaf8;
+  border: 1px solid #ecd9d0;
+  border-radius: 10px;
+  padding: 0.5rem;
+}
+
+.gallery-thumb-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.gallery-thumb {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+
+.gallery-missing {
+  display: block;
+  padding: 2rem 0.5rem;
+  text-align: center;
+  color: #a67f6f;
+  font-size: 0.85rem;
+}
+
+.gallery-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: #a67f6f;
+}
+
+.status-badge {
+  display: inline-block;
+  width: fit-content;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-printed {
+  background: #e8f8ee;
+  color: #1a6b3a;
+}
+
+.status-printing {
+  background: #e7f0ff;
+  color: #1a4d8c;
+}
+
+.status-failed {
+  background: #fde8e8;
+  color: #b42318;
+}
+
+.gallery-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.gallery-modal-inner {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  max-width: min(420px, 95vw);
+  max-height: 90vh;
+  overflow: auto;
+  text-align: center;
+}
+
+.gallery-modal-img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
 @media (max-width: 640px) {
   .booth-row {
     flex-direction: column-reverse;

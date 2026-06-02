@@ -18,7 +18,7 @@ export function CapturePage() {
     setSending(true)
     try {
       const row = await uploadStripAndQueuePrint(blob)
-      setLastSent(`Queued for print · ${row.id.slice(0, 8)}`)
+      setLastSent(`Saved · strip ${row.id.slice(0, 8)} — printing from laptop station`)
     } finally {
       setSending(false)
     }
